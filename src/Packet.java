@@ -1,46 +1,46 @@
 /**
  * 
  * @author Shikha Soni
- *
  *         This class represents the packet/TCP segment structure It stores bits
  *         to represent if the packet is a sync message, acknowledgement or
  *         information message.
  */
+
 public class Packet {
-	byte[] flag = new byte[9];
-	byte[] seqNum = new byte[32];
-	byte[] ackNum = new byte[32];
-	byte[] checksum = new byte[16];
+	byte[] flag = new byte[2];
+	byte[] seqNum = new byte[4];
+	byte[] ackNum = new byte[4];
+	byte[] checksum = new byte[2];
 
-	public void setFlag() {
-
+	public void setFlag(byte[] flag) {
+		this.flag = flag;
 	}
 
-	public void setSeqNum() {
-
+	public void setSeqNum(byte[] seqNum) {
+		this.seqNum = seqNum;
 	}
 
-	public void setAckNum() {
-
+	public void setAckNum(byte[] ackNum) {
+		this.ackNum = ackNum;
 	}
 
-	public void setCheckSum() {
-
+	public void setCheckSum(byte[] checkSum) {
+		this.checksum = checkSum;
 	}
 
-	public void getFlag() {
-
+	public byte[] getFlag() {
+		return flag;
 	}
 
-	public void getSeqNum() {
-
+	public byte[] getSeqNum() {
+		return seqNum;
 	}
 
-	public void getAckNum() {
-
+	public byte[] getAckNum() {
+		return ackNum;
 	}
 
-	public void getCheckSum() {
-
+	public byte[] getCheckSum() {
+		return checksum;
 	}
 }
