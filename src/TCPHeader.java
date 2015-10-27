@@ -1,13 +1,22 @@
 
 public class TCPHeader {
-	private boolean flag;
+	private boolean ack_flag=false;
+	private boolean syn_flag=false;
+	private boolean data_flag=false;
 	private int seqNum, ackNum;
 	private byte[] checkSum;
+	private String data;
 	
-	public void setFlag(boolean flag) {
-		this.flag = flag;
+	public void setAckFlag(boolean ack_flag) {
+		this.ack_flag = ack_flag;
+	}
+	public void setSynFlag(boolean syn_flag){
+		this.syn_flag=syn_flag;
 	}
 
+	public void setDataFlag(boolean data_flag){
+		this.data_flag=data_flag;
+	}
 	public void setSeqNum(int seqNum) {
 		this.seqNum = seqNum;
 	}
@@ -18,9 +27,16 @@ public class TCPHeader {
 	public void setCheckSum(byte[] checkSum) {
 		this.checkSum = checkSum;
 	}
+	
+	public void setData(String data){
+		this.data=data;
+	}
 
-	public boolean getFlag() {
-		return flag;
+	public boolean getAckFlag() {
+		return ack_flag;
+	}
+	public boolean getSynFlag(){
+		return syn_flag;
 	}
 
 	public int getSeqNum() {
@@ -33,5 +49,8 @@ public class TCPHeader {
 
 	public byte[] getCheckSum() {
 		return checkSum;
+	}
+	public String getData(){
+		return data;
 	}
 }

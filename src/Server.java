@@ -4,7 +4,6 @@ import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-
 public class Server {
 
 	private DatagramSocket serverSocket = null;
@@ -12,40 +11,51 @@ public class Server {
 	private DatagramPacket sendPacket = null;
 	private HashMap<Integer, TCPHeader> packets;
 	private HashMap<Integer, TCPHeader> ack;
-	private int RTT, port=8999, cwnd=1, ssthresh, timeOut, numPackets;
-	
-	public Server(){
+	private int RTT, port = 8999, cwnd = 1, ssthresh, timeOut, numPackets;
+	FileRead files;
+	String fileName;
+
+	public Server() {
 		try {
-			serverSocket= new DatagramSocket(port);
+			serverSocket = new DatagramSocket(port);
 		} catch (SocketException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
-	//calculate after every packet received
-	public void calcRTT(){
-		
+
+	public void run() {
+
 	}
-	public void run(){
-		
+
+	public void rec() {
+
 	}
-	public void rec(){
-		
+
+	public void send() {
+
 	}
-	public void send(){
-		
-	}
-	public void makePackets(){
+
+	public void makePackets() {
 		TCPHeader header;
-		for(int packet_num=1; packet_num<10;packet_num++){
-			header= new TCPHeader();
-			header.setFlag(false);
+		files = new FileRead(fileName);
+		for (int packet_num = 0; packet_num < 10; packet_num++) {
+			if (packet_num == 0) {
+				header = new TCPHeader();
+				header.setSynFlag(true);
+				packets.put(packet_num, header);
+				break;
+			}
+			header = new TCPHeader();
 			header.setSeqNum(packet_num);
-			//header.setCheckSum();
+			header.setData(files.readNext());
+			// header.setCheckSum();
+			packets.put(packet_num, header);
 		}
 	}
+
 	public static void main(String[] args) {
-		//start the receiver, then start the sender on separate thread
+		// start the receiver, then start the sender on separate thread
 	}
 
 }

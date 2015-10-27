@@ -6,8 +6,7 @@ import java.util.ArrayList;
 public class FileRead {
 	String fileName;
 	BufferedReader reader;
-	int num_Of_packets;
-	ArrayList<String> parts = new ArrayList();
+	int num_Of_packets=10;
 	
 	public FileRead(String fileName){
 		this.fileName=fileName;
@@ -22,8 +21,8 @@ public class FileRead {
 		num_Of_packets=packets;
 	}
 
-	public ArrayList<String> read() {
-		
+	public String readNext() {
+		String parts = null;
 		return parts;
 	}
 }
