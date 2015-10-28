@@ -1,11 +1,14 @@
+import java.io.Serializable;
 
-public class TCPHeader {
+
+public class TCPHeader implements Serializable{
+	private static final long serialVersionUID = 1L;
 	private boolean ack_flag=false;
 	private boolean syn_flag=false;
 	private boolean data_flag=false;
 	private int seqNum, ackNum;
-	private byte[] checkSum;
-	private String data;
+	private byte[] checkSum=null;
+	private String data=null;
 	
 	public void setAckFlag(boolean ack_flag) {
 		this.ack_flag = ack_flag;
@@ -37,6 +40,10 @@ public class TCPHeader {
 	}
 	public boolean getSynFlag(){
 		return syn_flag;
+	}
+	
+	public boolean getDataFlag(){
+		return data_flag;
 	}
 
 	public int getSeqNum() {
