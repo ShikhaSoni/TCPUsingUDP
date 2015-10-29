@@ -6,6 +6,7 @@ import java.io.ObjectOutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.util.TreeMap;
 
 //import java.util.TreeMap;
 
@@ -13,7 +14,7 @@ public class Client extends Thread {
 	private DatagramSocket clientSocket = null;
 	private DatagramPacket receivePacket = null;
 	private DatagramPacket sendPacket = null;
-	// private TreeMap<Integer, TCPHeader> packets;
+	private TreeMap<Integer, TCPHeader> packets;
 	InetAddress IPAddress;
 	byte[] sendData = new byte[1024];
 	byte[] receiveData = new byte[1024];
@@ -22,6 +23,7 @@ public class Client extends Thread {
 
 	public Client() {
 		try {
+			packets= new TreeMap<Integer, TCPHeader>();
 			clientSocket = new DatagramSocket(8999);
 			IPAddress = InetAddress.getByName("localhost");
 		} catch (Exception e) {
@@ -78,6 +80,8 @@ public class Client extends Thread {
 				recAckNum = packet.getSeqNum();
 				System.out
 						.println("Packet " + recAckNum + " received");
+				//on receiving insert it to treemap
+				packets.put(packet.getSeqNum(), packet);
 				if(recAckNum==3 || recAckNum==6){
 					pDroppedFlag=true;
 					droppedAckNum=recAckNum;
@@ -119,6 +123,12 @@ public class Client extends Thread {
 			e.printStackTrace();
 		}
 		return tcp;
+	}
+	public void openPacket(){
+		for(int index=0; index<packets.size(); index++){
+			//extracting the data and writing to the file.
+			
+		}
 	}
 
 	public static void main(String[] args) {

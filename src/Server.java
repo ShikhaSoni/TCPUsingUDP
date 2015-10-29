@@ -16,16 +16,19 @@ public class Server extends Thread {
 	private DatagramPacket receivePacket = null;
 	private DatagramPacket sendPacket = null;
 	private HashMap<Integer, TCPHeader> packets = new HashMap<Integer, TCPHeader>();
-	int[] ackCount = new int[10];
-	private int port, ssthresh, numPacketsSent=1;
-	volatile int cwnd = 1;
-	//double startTime;
-	private int timeOut;
+	int[] ackCount = new int[10];// stores for the ack packets
+	private int port, ssthresh, numPacketsSent = 1, totalPackets=0, timeOut, cwnd = 1;// number of total packets
+									// sent till now
+	FileRead file;
+	// double startTime;
 	byte[] sendData = new byte[1024];
 	byte[] receiveData = new byte[1024];
 	InetAddress IPAddress;
 
 	public Server() {
+		file= new FileRead("words.txt");
+		file.readNext();
+		this.totalPackets=file.totalPackets;
 		try {
 			Random random = new Random();
 			serverSocket = new DatagramSocket(7999);
@@ -67,10 +70,11 @@ public class Server extends Thread {
 					t.start();
 				} else if (packet.getAckFlag()) {
 					ackCount[packet.getAckNum()]++;
-					if(ackCount[packet.getAckNum()]==3){
-						//if the ack received is 3 send 3 again and keep a track of how many are sent and send then onwards
-						
-						//resend packet and then resume
+					if (ackCount[packet.getAckNum()] == 3) {
+						// if the ack received is 3 send 3 again and keep a
+						// track of how many are sent and send then onwards
+
+						// resend packet and then resume
 					}
 				}
 			} catch (SocketException e) {
@@ -84,8 +88,8 @@ public class Server extends Thread {
 	public void send() {
 		System.out.println("Starting to send the packets");
 		while (numPacketsSent != packets.size()) {
-			// send only cwnd number of packets
-			//while (numSent != cwnd) {
+			int numSent = 0;// number of packets sent
+			while (numSent != cwnd) {
 				// send the packet, and wait for ack if cwnd=1
 				sendData = getPacketBytes(packets.get(numPacketsSent));
 				sendPacket = new DatagramPacket(sendData, sendData.length,
@@ -99,9 +103,14 @@ public class Server extends Thread {
 					e.printStackTrace();
 				}
 				numPacketsSent++;
-			//}
-			//if cwnd has increased, then only continue sending, else wait till timeout
-			//cwnd increases if ack is received
+				numSent++;
+				// wait till at least one ack is received, increase window size.
+				// if this wait reaches TO, cwnd=1, ssthresh=cwnd/2 retransmit
+				// from the last
+			}
+			// if cwnd has increased, then only continue sending, else wait till
+			// timeout
+			// cwnd increases if ack is received
 		}
 	}
 
@@ -135,11 +144,10 @@ public class Server extends Thread {
 
 	public void makePackets() {
 		TCPHeader header;
-		// files = new FileRead(fileName);
-		for (int packet_num = 1; packet_num < 10; packet_num++) {
+		for (int packet_num = 1; packet_num < totalPackets; packet_num++) {
 			header = new TCPHeader();
 			header.setSeqNum(packet_num);
-			// header.setData(files.readNext());
+			header.setData(file.parts.get(packet_num));
 			// header.setCheckSum();
 			packets.put(packet_num, header);
 			System.out.println(packet_num + " Packet made");
@@ -169,11 +177,11 @@ public class Server extends Thread {
  */
 
 /*
- * System.out.println("Inside while the packets"); for (int
- * packet_num = 1; packet_num < 10; packet_num++) { sendData =
+ * System.out.println("Inside while the packets"); for (int packet_num = 1;
+ * packet_num < 10; packet_num++) { sendData =
  * getPacketBytes(packets.get(packet_num)); sendPacket = new
- * DatagramPacket(sendData, sendData.length, IPAddress, port);
- * try { Thread.sleep(1000); serverSocket.send(sendPacket); }
- * catch (InterruptedException e) { e.printStackTrace(); } catch
- * (IOException e) { e.printStackTrace(); }
+ * DatagramPacket(sendData, sendData.length, IPAddress, port); try {
+ * Thread.sleep(1000); serverSocket.send(sendPacket); } catch
+ * (InterruptedException e) { e.printStackTrace(); } catch (IOException e) {
+ * e.printStackTrace(); }
  */
