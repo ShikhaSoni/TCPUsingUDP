@@ -9,6 +9,7 @@ public class TCPHeader implements Serializable{
 	private int seqNum, ackNum;
 	private byte[] checkSum=null;
 	private byte[] data=null;
+	private boolean lastBit=false;
 	
 	public void setAckFlag(boolean ack_flag) {
 		this.ack_flag = ack_flag;
@@ -33,6 +34,10 @@ public class TCPHeader implements Serializable{
 	
 	public void setData(byte[] data){
 		this.data=data;
+	}
+	
+	public void setLastBit(boolean lastBit){
+		this.lastBit=lastBit;
 	}
 
 	public boolean getAckFlag() {
@@ -59,5 +64,9 @@ public class TCPHeader implements Serializable{
 	}
 	public byte[] getData(){
 		return data;
+	}
+	
+	public boolean lastBit(){
+		return lastBit;
 	}
 }

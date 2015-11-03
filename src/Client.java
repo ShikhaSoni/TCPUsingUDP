@@ -1,5 +1,8 @@
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -7,8 +10,6 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.util.TreeMap;
-
-//import java.util.TreeMap;
 
 public class Client extends Thread {
 	private DatagramSocket clientSocket = null;
@@ -18,12 +19,12 @@ public class Client extends Thread {
 	InetAddress IPAddress;
 	byte[] sendData = new byte[1024];
 	byte[] receiveData = new byte[1024];
-	int sendflag, droppedAckNum;
-	boolean pDroppedFlag=false;
+	int sendflag, droppedSeqNum, prevSeqNum=0;
+	boolean DroppedFlag = false;
 
 	public Client() {
 		try {
-			packets= new TreeMap<Integer, TCPHeader>();
+			packets = new TreeMap<Integer, TCPHeader>();
 			clientSocket = new DatagramSocket(8999);
 			IPAddress = InetAddress.getByName("localhost");
 		} catch (Exception e) {
@@ -52,7 +53,7 @@ public class Client extends Thread {
 			sendData = getPacketBytes(packet);
 			sendPacket = new DatagramPacket(sendData, sendData.length,
 					IPAddress, 7999);
-			System.out.println("Packet" + recAckNum + " sending");
+			//System.out.println("Packet" + recAckNum + " sending");
 			clientSocket.send(sendPacket);
 			if (packet.getSynFlag()) {
 				Thread t = new Thread(new Runnable() {
@@ -70,28 +71,25 @@ public class Client extends Thread {
 
 	public void rec() {
 		TCPHeader packet;
-		int recAckNum = 0;
+		int recSeqNum = 0;
 		while (true) {
 			receivePacket = new DatagramPacket(receiveData, receiveData.length);
 			try {
 				clientSocket.receive(receivePacket);
 				receiveData = receivePacket.getData();
 				packet = getPacketObject(receiveData);
-				recAckNum = packet.getSeqNum();
-				System.out
-						.println("Packet " + recAckNum + " received");
-				//on receiving insert it to treemap
+				recSeqNum = packet.getSeqNum();
 				packets.put(packet.getSeqNum(), packet);
-				if(recAckNum==3 || recAckNum==6){
-					pDroppedFlag=true;
-					droppedAckNum=recAckNum;
-					continue;
-					//dropping the packet
+				System.out.println("Packet " + recSeqNum + " received");
+				// on receiving insert it to treemap
+				send(nextSeqNum(recSeqNum));
+				if (packet.lastBit()) {
+					System.out.println(packet.getSeqNum()
+							+ " has been received hence opening");
+					openPacket();
 				}
-				if(!pDroppedFlag)
-					send(recAckNum+1);
-				else
-					send(droppedAckNum);
+				// else
+				// send(droppedAckNum);
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -124,10 +122,32 @@ public class Client extends Thread {
 		}
 		return tcp;
 	}
-	public void openPacket(){
-		for(int index=0; index<packets.size(); index++){
-			//extracting the data and writing to the file.
-			
+	
+	public int nextSeqNum(int latestSeqNum){
+		
+		if(latestSeqNum-prevSeqNum>1){
+		}
+		return latestSeqNum;
+	}
+
+	public void openPacket() {
+		File newFile = new File("output.txt");
+		FileOutputStream fos = null;
+		try {
+			fos = new FileOutputStream(newFile, true);
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		}
+		for (int index = 1; index < packets.size(); index++) {
+			// extracting the data and writing to the file.
+			try {
+				System.out.println("Writing to the file");
+				fos.write(packets.get(index).getData());
+				System.out.println(new String(packets.get(index).getData()));
+				fos.flush();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 
