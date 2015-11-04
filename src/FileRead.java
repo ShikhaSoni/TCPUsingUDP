@@ -8,8 +8,6 @@ public class FileRead {
 	String fileName;
 	FileInputStream fileInputStream = null;
 	File file;
-	byte[] bFile;
-	byte[] small;
 	int totalPackets;
 
 	public FileRead(String fileName) {
@@ -17,7 +15,6 @@ public class FileRead {
 		this.fileName = fileName;
 		file = new File(fileName);
 		System.out.println(file.length());
-		small = new byte[512];
 		try {
 			fileInputStream = new FileInputStream(file);
 		} catch (FileNotFoundException e) {
@@ -28,6 +25,13 @@ public class FileRead {
 	public int getNumOfPackets() {
 		return totalPackets;
 	}
+	public void print(HashMap<Integer, byte[]> parts){
+		for(int index=1; index<parts.size(); index++){
+			System.out.println("Part "+ index +":");
+			System.out.println(new String(parts.get(index)));
+			System.out.println("--------------------------"+ parts.get(index).length);
+		}
+	}
 
 	public HashMap<Integer, byte[]> readNext() {
 		HashMap<Integer, byte[]> parts = new HashMap<Integer, byte[]>();
@@ -35,6 +39,7 @@ public class FileRead {
 		int count = 0, index = 0;
 		
 		while (count < file.length()) {
+			byte[] small = new byte[512];
 			index++;
 			try {
 				fileInputStream.read(small);
@@ -43,17 +48,14 @@ public class FileRead {
 				e.printStackTrace();
 			}
 			parts.put(index, small);
-			System.out.println("Part "+ index +":");
-			System.out.println(new String(parts.get(index)));
-			System.out.println("--------------------------"+ parts.get(index).length+" Count"+count);
 			count += 512;
 		}
 		byte[] remaining= new byte[(int)file.length()-(count-512)];
 		if(remaining.length>0){
-			System.out.println("remaining"+ remaining.length);
+			//System.out.println("remaining"+ remaining.length);
 			try {
 				fileInputStream.read(remaining);
-				System.out.println(new String(remaining));
+				//System.out.println(new String(remaining));
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -62,6 +64,7 @@ public class FileRead {
 			//System.out.println(new String(parts.get(index+1)));
 		}
 		totalPackets=parts.size();
+	//	print(parts);
 		//System.out.println("Completed making "+totalPackets +" parts");
 		return parts;
 	}
