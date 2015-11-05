@@ -72,3 +72,102 @@ Table Of Contents
    Their use with TCP is standardized in [RFC1122].  Additional early
    work in additive-increase, multiplicative-decrease congestion control
    is given in [CJ89].
+
+Contact ();Links ();
+
+submitHome ();AI ();Robotics ();Notes ();About ();
+Home > AI Main > Clustering > k-Means Introduction > k-Means Example 1Delicious    StumbleUpon.com    Facebook.com    Digg.com
+Clusteringk-MeansLVQ
+Statistical Clustering.k-Means .*;
+View Java code
+View Python code
+k-Means: Step-By-Step Example
+As a simple illustration of a k-means algorithm, consider the following data set consisting of the scores of two variables on each of seven individuals:
+
+Subject	A	B
+1	1.0	1.0
+2	1.5	2.0
+3	3.0	4.0
+4	5.0	7.0
+5	3.5	5.0
+6	4.5	5.0
+7	3.5	4.5
+ 
+
+This data set is to be grouped into two clusters.  As a first step in finding a sensible initial partition, let the A & B values of the two individuals furthest apart (using the Euclidean distance measure), define the initial cluster means, giving:
+
+ 	Individual	Mean Vector (centroid)
+Group 1	1	(1.0, 1.0)
+Group 2	4	(5.0, 7.0)
+ 
+
+The remaining individuals are now examined in sequence and allocated to the cluster to which they are closest, in terms of Euclidean distance to the cluster mean. The mean vector is recalculated each time a new member is added. This leads to the following series of steps:
+
+ 	Cluster 1	Cluster 2
+Step	Individual	Mean Vector (centroid)	Individual	Mean Vector (centroid)
+1	1	(1.0, 1.0)	4	(5.0, 7.0)
+2	1, 2	(1.2, 1.5)	4	(5.0, 7.0)
+3	1, 2, 3	(1.8, 2.3)	4	(5.0, 7.0)
+4	1, 2, 3	(1.8, 2.3)	4, 5	(4.2, 6.0)
+5	1, 2, 3	(1.8, 2.3)	4, 5, 6	(4.3, 5.7)
+6	1, 2, 3	(1.8, 2.3)	4, 5, 6, 7	(4.1, 5.4)
+ 
+
+Now the initial partition has changed, and the two clusters at this stage having the following characteristics:
+
+ 	Individual	Mean Vector (centroid)
+Cluster 1	1, 2, 3	(1.8, 2.3)
+Cluster 2	4, 5, 6, 7	(4.1, 5.4)
+ 
+
+But we cannot yet be sure that each individual has been assigned to the right cluster.  So, we compare each individual’s distance to its own cluster mean and to
+that of the opposite cluster. And we find:
+
+Individual	Distance to mean (centroid) of Cluster 1	Distance to mean (centroid) of Cluster 2
+1	1.5	5.4
+2	0.4	4.3
+3	2.1	1.8
+4	5.7	1.8
+5	3.2	0.7
+6	3.8	0.6
+7	2.8	1.1
+ 
+
+Only individual 3 is nearer to the mean of the opposite cluster (Cluster 2) than its own (Cluster 1).  In other words, each individual's distance to its own cluster mean should be smaller that the distance to the other cluster's mean (which is not the case with individual 3).  Thus, individual 3 is relocated to Cluster 2 resulting in the new partition:
+
+ 	Individual	Mean Vector (centroid)
+Cluster 1	1, 2	(1.3, 1.5)
+Cluster 2	3, 4, 5, 6, 7	(3.9, 5.1)
+ 
+
+The iterative relocation would now continue from this new partition until no more relocations occur.  However, in this example each individual is now nearer its own cluster mean than that of the other cluster and the iteration stops, choosing the latest partitioning as the final cluster solution.
+
+Also, it is possible that the k-means algorithm won't find a final solution.  In this case it would be a good idea to consider stopping the algorithm after a pre-chosen maximum of iterations.
+
+ 
+
+News Links:
+2015 (0)
+November (0)
+October (0)
+September (0)
+August (0)
+July (0)
+June (0)
+May (0)
+April (0)
+March (0)
+February (0)
+January (0)
+2014 (0)
+2013 (32)
+2012 (242)
+2011 (217)
+2010 (185)
+2009 (20)
+Search News Links: 
+ Search News
+public void footer() {
+About | Contact | Privacy Policy | Terms of Service | Site Map
+Copyright© 2009-2012 John McCullock. All Rights Reserved.
+}

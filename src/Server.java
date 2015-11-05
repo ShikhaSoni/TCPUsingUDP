@@ -49,20 +49,19 @@ public class Server extends Thread {
 				receiveData = receivePacket.getData();
 				packet = getPacketObject(receiveData);
 				boolean restart = false;
-				System.out.println(packet.getAckNum() + " ack");
-
 				if (packet.getAckNum() == prevAckNum) {
 					countAck++;
+					System.out.println(countAck + " dupacks");
 					if (countAck == 3) {
-						// resend
-						System.out.println("Ack loss occured: "
-								+ (packet.getAckNum() - 1));
+						 System.out.println("Ack loss occured: " +
+						 (packet.getAckNum()));
 						nextInLine = packet.getAckNum();
+						//retransmit the lost packet
 						restart = true;
 						cwnd = 1;
 						ssthresh = cwnd / 2;
 						// start sending and wait till ssthresh,
-						//retransmit the lost and then increment
+						// retransmit the lost and then increment
 					} else {
 						restart = false;
 						continue;
@@ -78,14 +77,14 @@ public class Server extends Thread {
 					}
 				}
 				if (packet.getAckNum() < totalPackets + 1) {
-					//System.out.println(nextInLine+ " will be sent");
+					//System.out.println("Restart put inside object: "+restart);
 					new Send(nextInLine, restart, serverSocket, port,
 							IPAddress, packets, totalPackets, cwnd).start();
 					packetsAlreadySent += cwnd;
-					if(packet.getSynFlag())
+					if (packet.getSynFlag())
 						nextInLine += 1;
 					else
-						nextInLine+=2;
+						nextInLine += 2;
 				} else
 					return;
 			} catch (SocketException e) {
@@ -112,22 +111,19 @@ public class Server extends Thread {
 	}
 
 	public void makePackets() {
-		HashMap<Integer, byte[]> parts=file.readNext();
+		HashMap<Integer, byte[]> parts = file.readNext();
 		this.totalPackets = file.totalPackets;
+		System.out.println(totalPackets);
 		TCPHeader header;
 		for (int packet_num = 1; packet_num <= totalPackets; packet_num++) {
 			header = new TCPHeader();
 			header.setSeqNum(packet_num);
 			header.setData(parts.get(packet_num));
-			System.out.println("Part " + packet_num + ": ");
-			System.out.println(new String(parts.get(packet_num)));
-			//header.setCheckSum();
+			// header.setCheckSum();
 			if (packet_num == totalPackets) {
 				header.setLastBit(true);
 			}
 			packets.put(packet_num, header);
-			System.out.println("------------------------------------");
-			//System.out.println();
 		}
 	}
 
@@ -140,22 +136,19 @@ public class Server extends Thread {
 class Send extends Thread {
 	private DatagramSocket serverSocket = null;
 	private DatagramPacket sendPacket = null;
-	boolean retsart;
+	boolean restart;
 	byte[] sendData = new byte[1024];
 	InetAddress IPAddress;
 	private HashMap<Integer, TCPHeader> packets;
 	static Object lock = new Object();
 	int NumToSendNext, port, cwnd, totalPackets, nextInLine;
-	static int seqNum=1;
-	// static volatile int nextInLine;
-
-	boolean restartFlag = false;
+	static int seqNum = 1;
 
 	public Send(int nextInLine, boolean restart, DatagramSocket serverSocket,
 			int port, InetAddress IPAddress,
 			HashMap<Integer, TCPHeader> packets, int totalPackets, int cwnd) {
 		this.nextInLine = nextInLine;
-		this.retsart = restart;
+		this.restart = restart;
 		this.port = port;
 		this.serverSocket = serverSocket;
 		this.IPAddress = IPAddress;
@@ -165,6 +158,7 @@ class Send extends Thread {
 
 		if (restart || cwnd == 1) {
 			NumToSendNext = 1;
+			seqNum = 1;
 		} else {
 			NumToSendNext = 2;
 		}
@@ -175,11 +169,12 @@ class Send extends Thread {
 	}
 
 	public void send() {
-		//cwnd in order
 		int numAlreadySent = 0;
 		synchronized (lock) {
-			System.out.println("CWND: "+cwnd+" SeqNum "+seqNum);
-			while(cwnd!=seqNum){
+			if(restart){
+				seqNum=1;
+			}
+			while (cwnd != seqNum) {
 				lock.notifyAll();
 				try {
 					lock.wait();
@@ -187,10 +182,10 @@ class Send extends Thread {
 					e.printStackTrace();
 				}
 			}
-			while (numAlreadySent < NumToSendNext
-					&& nextInLine < (totalPackets + 1)) {
+			System.out.println(nextInLine+" entered sync block: "+seqNum+" cwnd: "+ cwnd);
+			while (numAlreadySent < NumToSendNext) {
 				sendData = getPacketBytes(packets.get(nextInLine));
-				System.out.print(nextInLine+" ; ");
+				System.out.println(nextInLine + " sent");
 				sendPacket = new DatagramPacket(sendData, sendData.length,
 						IPAddress, port);
 				try {
@@ -204,8 +199,10 @@ class Send extends Thread {
 				nextInLine++;
 				numAlreadySent++;
 			}
-			System.out.println(seqNum);
-			seqNum++;
+			if (!restart) {
+				seqNum++;
+			}
+			System.out.println(nextInLine+" left sync block");
 		}
 		// start timer
 	}
@@ -228,7 +225,7 @@ class TimerThread extends Thread {
 	int timeOut = 0;
 
 	public TimerThread(int timeOut) { // stop the previous thread, start a
-										// newone
+		// newone
 		this.timeOut = timeOut;
 	}
 

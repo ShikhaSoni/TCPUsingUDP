@@ -67,6 +67,7 @@ public class Client extends Thread {
 	public void rec() {
 		TCPHeader packet;
 		int recSeqNum = 0;
+		boolean flag= true;
 		while (true) {
 			receivePacket = new DatagramPacket(receiveData, receiveData.length);
 			try {
@@ -75,6 +76,12 @@ public class Client extends Thread {
 				packet = getPacketObject(receiveData);
 				recSeqNum = packet.getSeqNum();
 				System.out.println("Packet " + recSeqNum + " received");
+				//drop the packets
+				if(packet.getSeqNum()==6 && flag){
+					flag=false;
+					System.out.println("Dropping packet"+packet.getSeqNum());
+					continue;
+				}
 				send(nextSeqNum(recSeqNum));
 				packets.put(packet.getSeqNum(), packet);
 				if (packet.lastBit()) {
@@ -117,18 +124,27 @@ public class Client extends Thread {
 	
 	public int nextSeqNum(int latestSeqNum){
 		//expected next in line
+		boolean flag= false;
 		if(misSeqNum.isEmpty()){
-			System.out.println(latestSeqNum+" first if");
 			misSeqNum.add(latestSeqNum+1);
+			System.out.println(latestSeqNum+1+" added---1");
 		}
 		else{
 			//remove the received packet
 			for(int index=0; index<misSeqNum.size(); index++){
 				if(misSeqNum.get(index)==latestSeqNum){
+					System.out.println(misSeqNum.get(index)+" removed");
+					if(misSeqNum.size()>1){
+						flag=true;
+					}
 					misSeqNum.remove(index);
 				}
 			}
+			if(!flag){
 			misSeqNum.add(latestSeqNum+1);
+			System.out.println(misSeqNum.get(misSeqNum.size()-1)+" added---2");
+			flag=false;
+			}
 			return misSeqNum.get(0);
 		}
 		return latestSeqNum+1;
@@ -147,11 +163,15 @@ public class Client extends Thread {
 			try {
 				System.out.println("Writing to the file");
 				fos.write(packets.get(index).getData());
-			//	System.out.println(new String(packets.get(index).getData()));
 				fos.flush();
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
+		}
+		try {
+			fos.close();
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 	}
 
