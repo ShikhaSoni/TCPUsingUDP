@@ -14,11 +14,12 @@ public class Server extends Thread {
 	private DatagramSocket serverSocket = null;
 	private DatagramPacket receivePacket = null;
 	private HashMap<Integer, TCPHeader> packets = new HashMap<Integer, TCPHeader>();
-	FileRead file;
+	private FileRead file;
 	int cwnd = 0, packetsAlreadySent = 0, totalPackets, port,
 			prevAckNum = Integer.MAX_VALUE, countAck, ssthresh, nextInLine;
 	byte[] receiveData = new byte[1024];
 	InetAddress IPAddress;
+	boolean Lostflag=false;
 
 	public Server() {
 		file = new FileRead("words.txt");
@@ -48,6 +49,12 @@ public class Server extends Thread {
 
 				receiveData = receivePacket.getData();
 				packet = getPacketObject(receiveData);
+				//start a new timer thread and destroy the current one 
+				//if time out send the last ack received
+				
+				
+				
+				//System.out.println(packet.getAckNum()+" Packet received prev ack: "+ prevAckNum+" NextI"+nextInLine);
 				boolean restart = false;
 				if (packet.getAckNum() == prevAckNum) {
 					countAck++;
@@ -57,6 +64,7 @@ public class Server extends Thread {
 						 (packet.getAckNum()));
 						nextInLine = packet.getAckNum();
 						//retransmit the lost packet
+						Lostflag=true;
 						restart = true;
 						cwnd = 1;
 						ssthresh = cwnd / 2;
@@ -72,17 +80,25 @@ public class Server extends Thread {
 						cwnd = 1;
 					} else {
 						restart = false;
+						//nextInLine=packet.getAckNum();
+						if(Lostflag){
+							cwnd+=(1/cwnd);
+						}
 						cwnd++;
 						prevAckNum = packet.getAckNum();
 					}
 				}
 				if (packet.getAckNum() < totalPackets + 1) {
-					//System.out.println("Restart put inside object: "+restart);
-					new Send(nextInLine, restart, serverSocket, port,
-							IPAddress, packets, totalPackets, cwnd).start();
+					System.out.println("Nextseq: "+nextInLine);
+					Send s=new Send(nextInLine, restart, serverSocket, port,
+							IPAddress, packets, cwnd);
+					s.setName(Integer.toString(cwnd));
+					s.start();
 					packetsAlreadySent += cwnd;
-					if (packet.getSynFlag())
+					if (packet.getSynFlag() && Lostflag){
 						nextInLine += 1;
+						Lostflag=false;  
+					}
 					else
 						nextInLine += 2;
 				} else
@@ -141,19 +157,19 @@ class Send extends Thread {
 	InetAddress IPAddress;
 	private HashMap<Integer, TCPHeader> packets;
 	static Object lock = new Object();
-	int NumToSendNext, port, cwnd, totalPackets, nextInLine;
+	int NumToSendNext, port, nextInLine;
 	static int seqNum = 1;
+	int cwnd, prevcwnd;
 
 	public Send(int nextInLine, boolean restart, DatagramSocket serverSocket,
 			int port, InetAddress IPAddress,
-			HashMap<Integer, TCPHeader> packets, int totalPackets, int cwnd) {
+			HashMap<Integer, TCPHeader> packets, int cwnd) {
 		this.nextInLine = nextInLine;
 		this.restart = restart;
 		this.port = port;
 		this.serverSocket = serverSocket;
 		this.IPAddress = IPAddress;
 		this.packets = packets;
-		this.totalPackets = totalPackets;
 		this.cwnd = cwnd;
 
 		if (restart || cwnd == 1) {
@@ -172,8 +188,13 @@ class Send extends Thread {
 		int numAlreadySent = 0;
 		synchronized (lock) {
 			if(restart){
-				seqNum=1;
+				seqNum=1;//change this only after the previous thread is done
+				
+				
+				
+				//wait till all the threads before this have been executed
 			}
+			System.out.println("entered sync block: "+seqNum+" cwnd: "+ cwnd+" NextInLine" +nextInLine);
 			while (cwnd != seqNum) {
 				lock.notifyAll();
 				try {
@@ -182,7 +203,7 @@ class Send extends Thread {
 					e.printStackTrace();
 				}
 			}
-			System.out.println(nextInLine+" entered sync block: "+seqNum+" cwnd: "+ cwnd);
+			prevcwnd=cwnd;
 			while (numAlreadySent < NumToSendNext) {
 				sendData = getPacketBytes(packets.get(nextInLine));
 				System.out.println(nextInLine + " sent");
@@ -202,7 +223,7 @@ class Send extends Thread {
 			if (!restart) {
 				seqNum++;
 			}
-			System.out.println(nextInLine+" left sync block");
+			System.out.println("---------------------------");
 		}
 		// start timer
 	}
