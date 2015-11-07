@@ -1,15 +1,4 @@
-﻿[Docs] [txt|pdf] [draft-ietf-tcpm-r...] [Diff1] [Diff2] [Errata]        
-                                                                        
-                                                          DRAFT STANDARD
-                                                            Errata Exist
-Network Working Group                                          M. Allman
-Request for Comments: 5681                                     V. Paxson
-Obsoletes: 2581                                                     ICSI
-Category: Standards Track                                     E. Blanton
-                                                       Purdue University
-                                                          September 2009
-
-
+﻿
                          TCP Congestion Control
 
 Abstract
@@ -64,6 +53,23 @@ RFC 5681                 TCP Congestion Control           September 2009
 
 Table Of Contents
 
+   1. Introduction ....................................................2
+   2. Definitions .....................................................3
+   3. Congestion Control Algorithms ...................................4
+      3.1. Slow Start and Congestion Avoidance ........................4
+      3.2. Fast Retransmit/Fast Recovery ..............................8
+   4. Additional Considerations ......................................10
+      4.1. Restarting Idle Connections ...............................10
+      4.2. Generating Acknowledgments ................................11
+      4.3. Loss Recovery Mechanisms ..................................12
+   5. Security Considerations ........................................13
+   6. Changes between RFC 2001 and RFC 2581 ..........................13
+   7. Changes Relative to RFC 2581 ...................................14
+   8. Acknowledgments ................................................15
+   9. References .....................................................15
+      9.1. Normative References ......................................15
+      9.2. Informative References ....................................16
+
 1.  Introduction
 
    This document specifies four TCP [RFC793] congestion control
@@ -73,101 +79,184 @@ Table Of Contents
    work in additive-increase, multiplicative-decrease congestion control
    is given in [CJ89].
 
-Contact ();Links ();
+   Note that [Ste94] provides examples of these algorithms in action and
+   [WS95] provides an explanation of the source code for the BSD
+   implementation of these algorithms.
 
-submitHome ();AI ();Robotics ();Notes ();About ();
-Home > AI Main > Clustering > k-Means Introduction > k-Means Example 1Delicious    StumbleUpon.com    Facebook.com    Digg.com
-Clusteringk-MeansLVQ
-Statistical Clustering.k-Means .*;
-View Java code
-View Python code
-k-Means: Step-By-Step Example
-As a simple illustration of a k-means algorithm, consider the following data set consisting of the scores of two variables on each of seven individuals:
+   In addition to specifying these congestion control algorithms, this
+   document specifies what TCP connections should do after a relatively
+   long idle period, as well as specifying and clarifying some of the
+   issues pertaining to TCP ACK generation.
 
-Subject	A	B
-1	1.0	1.0
-2	1.5	2.0
-3	3.0	4.0
-4	5.0	7.0
-5	3.5	5.0
-6	4.5	5.0
-7	3.5	4.5
+   This document obsoletes [RFC2581], which in turn obsoleted [RFC2001].
+
+   This document is organized as follows.  Section 2 provides various
+   definitions that will be used throughout the document.  Section 3
+   provides a specification of the congestion control algorithms.
+   Section 4 outlines concerns related to the congestion control
+   algorithms and finally, section 5 outlines security considerations.
+
+
+
+Allman, et al.              Standards Track                     [Page 2]
  
+RFC 5681                 TCP Congestion Control           September 2009
 
-This data set is to be grouped into two clusters.  As a first step in finding a sensible initial partition, let the A & B values of the two individuals furthest apart (using the Euclidean distance measure), define the initial cluster means, giving:
 
- 	Individual	Mean Vector (centroid)
-Group 1	1	(1.0, 1.0)
-Group 2	4	(5.0, 7.0)
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [RFC2119].
+
+2.  Definitions
+
+   This section provides the definition of several terms that will be
+   used throughout the remainder of this document.
+
+   SEGMENT: A segment is ANY TCP/IP data or acknowledgment packet (or
+      both).
+
+   SENDER MAXIMUM SEGMENT SIZE (SMSS): The SMSS is the size of the
+      largest segment that the sender can transmit.  This value can be
+      based on the maximum transmission unit of the network, the path
+      MTU discovery [RFC1191, RFC4821] algorithm, RMSS (see next item),
+      or other factors.  The size does not include the TCP/IP headers
+      and options.
+
+   RECEIVER MAXIMUM SEGMENT SIZE (RMSS): The RMSS is the size of the
+      largest segment the receiver is willing to accept.  This is the
+      value specified in the MSS option sent by the receiver during
+      connection startup.  Or, if the MSS option is not used, it is 536
+      bytes [RFC1122].  The size does not include the TCP/IP headers and
+      options.
+
+   FULL-SIZED SEGMENT: A segment that contains the maximum number of
+      data bytes permitted (i.e., a segment containing SMSS bytes of
+      data).
+
+   RECEIVER WINDOW (rwnd): The most recently advertised receiver window.
+
+   CONGESTION WINDOW (cwnd): A TCP state variable that limits the amount
+      of data a TCP can send.  At any given time, a TCP MUST NOT send
+      data with a sequence number higher than the sum of the highest
+      acknowledged sequence number and the minimum of cwnd and rwnd.
+
+   INITIAL WINDOW (IW): The initial window is the size of the sender's
+      congestion window after the three-way handshake is completed.
+
+   LOSS WINDOW (LW): The loss window is the size of the congestion
+      window after a TCP sender detects loss using its retransmission
+      timer.
+
+   RESTART WINDOW (RW): The restart window is the size of the congestion
+      window after a TCP restarts transmission after an idle period (if
+      the slow start algorithm is used; see section 4.1 for more
+      discussion).
+
+
+
+Allman, et al.              Standards Track                     [Page 3]
  
+RFC 5681                 TCP Congestion Control           September 2009
 
-The remaining individuals are now examined in sequence and allocated to the cluster to which they are closest, in terms of Euclidean distance to the cluster mean. The mean vector is recalculated each time a new member is added. This leads to the following series of steps:
 
- 	Cluster 1	Cluster 2
-Step	Individual	Mean Vector (centroid)	Individual	Mean Vector (centroid)
-1	1	(1.0, 1.0)	4	(5.0, 7.0)
-2	1, 2	(1.2, 1.5)	4	(5.0, 7.0)
-3	1, 2, 3	(1.8, 2.3)	4	(5.0, 7.0)
-4	1, 2, 3	(1.8, 2.3)	4, 5	(4.2, 6.0)
-5	1, 2, 3	(1.8, 2.3)	4, 5, 6	(4.3, 5.7)
-6	1, 2, 3	(1.8, 2.3)	4, 5, 6, 7	(4.1, 5.4)
+   FLIGHT SIZE: The amount of data that has been sent but not yet
+      cumulatively acknowledged.
+
+   DUPLICATE ACKNOWLEDGMENT: An acknowledgment is considered a
+      "duplicate" in the following algorithms when (a) the receiver of
+      the ACK has outstanding data, (b) the incoming acknowledgment
+      carries no data, (c) the SYN and FIN bits are both off, (d) the
+      acknowledgment number is equal to the greatest acknowledgment
+      received on the given connection (TCP.UNA from [RFC793]) and (e)
+      the advertised window in the incoming acknowledgment equals the
+      advertised window in the last incoming acknowledgment.
+
+      Alternatively, a TCP that utilizes selective acknowledgments
+      (SACKs) [RFC2018, RFC2883] can leverage the SACK information to
+      determine when an incoming ACK is a "duplicate" (e.g., if the ACK
+      contains previously unknown SACK information).
+
+3.  Congestion Control Algorithms
+
+   This section defines the four congestion control algorithms: slow
+   start, congestion avoidance, fast retransmit, and fast recovery,
+   developed in [Jac88] and [Jac90].  In some situations, it may be
+   beneficial for a TCP sender to be more conservative than the
+   algorithms allow; however, a TCP MUST NOT be more aggressive than the
+   following algorithms allow (that is, MUST NOT send data when the
+   value of cwnd computed by the following algorithms would not allow
+   the data to be sent).
+
+   Also, note that the algorithms specified in this document work in
+   terms of using loss as the signal of congestion.  Explicit Congestion
+   Notification (ECN) could also be used as specified in [RFC3168].
+
+3.1.  Slow Start and Congestion Avoidance
+
+   The slow start and congestion avoidance algorithms MUST be used by a
+   TCP sender to control the amount of outstanding data being injected
+   into the network.  To implement these algorithms, two variables are
+   added to the TCP per-connection state.  The congestion window (cwnd)
+   is a sender-side limit on the amount of data the sender can transmit
+   into the network before receiving an acknowledgment (ACK), while the
+   receiver's advertised window (rwnd) is a receiver-side limit on the
+   amount of outstanding data.  The minimum of cwnd and rwnd governs
+   data transmission.
+
+   Another state variable, the slow start threshold (ssthresh), is used
+   to determine whether the slow start or congestion avoidance algorithm
+   is used to control data transmission, as discussed below.
+
+
+
+
+Allman, et al.              Standards Track                     [Page 4]
  
+RFC 5681                 TCP Congestion Control           September 2009
 
-Now the initial partition has changed, and the two clusters at this stage having the following characteristics:
 
- 	Individual	Mean Vector (centroid)
-Cluster 1	1, 2, 3	(1.8, 2.3)
-Cluster 2	4, 5, 6, 7	(4.1, 5.4)
- 
+   Beginning transmission into a network with unknown conditions
+   requires TCP to slowly probe the network to determine the available
+   capacity, in order to avoid congesting the network with an
+   inappropriately large burst of data.  The slow start algorithm is
+   used for this purpose at the beginning of a transfer, or after
+   repairing loss detected by the retransmission timer.  Slow start
+   additionally serves to start the "ACK clock" used by the TCP sender
+   to release data into the network in the slow start, congestion
+   avoidance, and loss recovery algorithms.
 
-But we cannot yet be sure that each individual has been assigned to the right cluster.  So, we compare each individual’s distance to its own cluster mean and to
-that of the opposite cluster. And we find:
+   IW, the initial value of cwnd, MUST be set using the following
+   guidelines as an upper bound.
 
-Individual	Distance to mean (centroid) of Cluster 1	Distance to mean (centroid) of Cluster 2
-1	1.5	5.4
-2	0.4	4.3
-3	2.1	1.8
-4	5.7	1.8
-5	3.2	0.7
-6	3.8	0.6
-7	2.8	1.1
- 
+   If SMSS > 2190 bytes:
+       IW = 2 * SMSS bytes and MUST NOT be more than 2 segments
+   If (SMSS > 1095 bytes) and (SMSS <= 2190 bytes):
+       IW = 3 * SMSS bytes and MUST NOT be more than 3 segments
+   if SMSS <= 1095 bytes:
+       IW = 4 * SMSS bytes and MUST NOT be more than 4 segments
 
-Only individual 3 is nearer to the mean of the opposite cluster (Cluster 2) than its own (Cluster 1).  In other words, each individual's distance to its own cluster mean should be smaller that the distance to the other cluster's mean (which is not the case with individual 3).  Thus, individual 3 is relocated to Cluster 2 resulting in the new partition:
+   As specified in [RFC3390], the SYN/ACK and the acknowledgment of the
+   SYN/ACK MUST NOT increase the size of the congestion window.
+   Further, if the SYN or SYN/ACK is lost, the initial window used by a
+   sender after a correctly transmitted SYN MUST be one segment
+   consisting of at most SMSS bytes.
 
- 	Individual	Mean Vector (centroid)
-Cluster 1	1, 2	(1.3, 1.5)
-Cluster 2	3, 4, 5, 6, 7	(3.9, 5.1)
- 
+   A detailed rationale and discussion of the IW setting is provided in
+   [RFC3390].
 
-The iterative relocation would now continue from this new partition until no more relocations occur.  However, in this example each individual is now nearer its own cluster mean than that of the other cluster and the iteration stops, choosing the latest partitioning as the final cluster solution.
+   When initial congestion windows of more than one segment are
+   implemented along with Path MTU Discovery [RFC1191], and the MSS
+   being used is found to be too large, the congestion window cwnd
+   SHOULD be reduced to prevent large bursts of smaller segments.
+   Specifically, cwnd SHOULD be reduced by the ratio of the old segment
+   size to the new segment size.
 
-Also, it is possible that the k-means algorithm won't find a final solution.  In this case it would be a good idea to consider stopping the algorithm after a pre-chosen maximum of iterations.
-
- 
-
-News Links:
-2015 (0)
-November (0)
-October (0)
-September (0)
-August (0)
-July (0)
-June (0)
-May (0)
-April (0)
-March (0)
-February (0)
-January (0)
-2014 (0)
-2013 (32)
-2012 (242)
-2011 (217)
-2010 (185)
-2009 (20)
-Search News Links: 
- Search News
-public void footer() {
-About | Contact | Privacy Policy | Terms of Service | Site Map
-Copyright© 2009-2012 John McCullock. All Rights Reserved.
-}
+   The initial value of ssthresh SHOULD be set arbitrarily high (e.g.,
+   to the size of the largest possible advertised window), but ssthresh
+   MUST be reduced in response to congestion.  Setting ssthresh as high
+   as possible allows the network conditions, rather than some arbitrary
+   host limit, to dictate the sending rate.  In cases where the end
+   systems have a solid understanding of the network path, more
+   carefully setting the initial ssthresh value may have merit (e.g.,
+   such that the end host does not create congestion along the path).
+  

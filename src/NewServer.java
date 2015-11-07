@@ -21,7 +21,8 @@ public class NewServer {
 	byte[] receiveData = new byte[1024];
 	byte[] sendData = new byte[1024];
 	InetAddress IPAddress;
-	int port, totalPackets, cwnd, ssthresh, packetToSend;
+	int port, totalPackets, ssthresh, packetToSend;
+	double cwnd=1.0;
 	
 
 	public NewServer() {
@@ -88,9 +89,10 @@ public class NewServer {
 	}
 
 	class Receiver extends Thread {
-		boolean firstTime = true, restart = false;
+		boolean firstTime = true, restart = false, inCongestionAvoidance=false, overSsthresh=false;
 		int nextInLine = 0, numOfPacketsToSend, prevAckNum = Integer.MAX_VALUE,
 				countAck, droppedPacket;
+		double prevCwnd;
 
 		public void run() {
 			System.out.println("Receiver thread started");
@@ -105,10 +107,14 @@ public class NewServer {
 					receivePacket = new DatagramPacket(receiveData,
 							receiveData.length);
 					serverSocket.receive(receivePacket);
+					//reset timer
+					//if timer ends send the last ack rec
+					
 					IPAddress = receivePacket.getAddress();
 					port = receivePacket.getPort();
 					receiveData = receivePacket.getData();
 					packet = getPacketObject(receiveData);
+					System.out.println("CWND"+ cwnd);
 					System.out.println("Received ack: "+packet.getAckNum());
 					if (packet.getAckNum() == prevAckNum) {
 						countAck++;
@@ -121,9 +127,11 @@ public class NewServer {
 									+ (packet.getAckNum()));
 							// retransmit the lost packet
 							restart = true;
-							cwnd = 0;
+							//retransmit lost packet
 							droppedPacket=packet.getAckNum();
-							ssthresh=cwnd/2;
+							ssthresh=(int)cwnd/2;
+							cwnd = 0;
+							inCongestionAvoidance=true;
 							// start sending and wait till ssthresh,
 							// retransmit the lost and then increment
 						} else {
@@ -131,20 +139,57 @@ public class NewServer {
 							continue;
 						}
 					}
-					cwnd++;
-					if (packet.getSynFlag()) {
-						numOfPacketsToSend = 1;
-						nextInLine=1;
-						packetToSend=nextInLine;
-						new Sender().start();
-					} else if (restart) {
-						numOfPacketsToSend = 1;
-						packetToSend=droppedPacket;
-					} else{
-						numOfPacketsToSend = 2;
-						packetToSend=nextInLine;
+					if(inCongestionAvoidance){
+						System.out.println("In Congestion Avoidance");
+						if (restart) {
+							System.out.println("In retransmission with cwnd "+cwnd);
+							numOfPacketsToSend = 1;
+							//send the lost packet
+							packetToSend=droppedPacket;
+						}
+						else if(cwnd>=ssthresh || overSsthresh){
+							overSsthresh=true;
+							//System.out.println(prevCwnd);
+							if((int)cwnd-(int)prevCwnd>=1){
+								//System.out.println("----------2 packets "+(cwnd-prevCwnd));
+								prevCwnd=cwnd;
+								cwnd+=(1/cwnd);
+								numOfPacketsToSend=2;
+							}
+							else {
+								//System.out.println("-----------1"+(cwnd-prevCwnd));
+								prevCwnd=cwnd;
+								cwnd+=(1/cwnd);
+								numOfPacketsToSend=1;
+							}
+							packetToSend=nextInLine;
+						}
+						else{
+							if(cwnd==1){
+								//System.out.println("CWND is one again"+ cwnd);
+								numOfPacketsToSend=1;
+							}
+							else{
+								//System.out.println("CWND when cwnd is not 1 again: "+cwnd);
+								numOfPacketsToSend=2;
+							}
+							prevCwnd=cwnd;
+							cwnd++;
+							packetToSend=nextInLine;
+						}
 					}
-					System.out.println("CWND"+ cwnd);
+					else{
+						if (packet.getSynFlag()) {
+							numOfPacketsToSend = 1;
+							nextInLine=1;
+							packetToSend=nextInLine;
+							new Sender().start();
+						}  else{
+							numOfPacketsToSend = 2;
+							packetToSend=nextInLine;
+						}
+						cwnd++;
+					}
 					if (packet.getAckNum() < totalPackets + 1) {
 						synchronized (packetsInLine) {
 							for (int count = 0; count < numOfPacketsToSend; count++) {
@@ -160,7 +205,10 @@ public class NewServer {
 						}
 					}
 					prevAckNum = packet.getAckNum();
-					restart=false;
+					if(restart){
+						cwnd++;
+						restart=false;
+					}
 				} catch (SocketException e) {
 					e.printStackTrace();
 				} catch (IOException e) {
