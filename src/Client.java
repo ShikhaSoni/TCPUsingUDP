@@ -9,8 +9,12 @@ import java.io.ObjectOutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.TreeMap;
+
+import javax.xml.bind.DatatypeConverter;
 
 public class Client extends Thread {
 	private DatagramSocket clientSocket = null;
@@ -63,6 +67,24 @@ public class Client extends Thread {
 			e.printStackTrace();
 		}
 	}
+	
+	public String getCheckSum(byte[] object){
+		ByteArrayOutputStream baos = null;
+	    ObjectOutputStream oos = null;
+	    byte[] thedigest = null;
+	    try {
+	        baos = new ByteArrayOutputStream();
+	        oos = new ObjectOutputStream(baos);
+	        oos.writeObject(object);
+	        MessageDigest md = MessageDigest.getInstance("MD5");
+	        thedigest = md.digest(baos.toByteArray());
+	    } catch (IOException e) {
+			e.printStackTrace();
+		} catch (NoSuchAlgorithmException e) {
+			e.printStackTrace();
+		} 
+	    return DatatypeConverter.printHexBinary(thedigest);
+	}
 
 	public void rec() {
 		TCPHeader packet;
@@ -77,6 +99,13 @@ public class Client extends Thread {
 				recSeqNum = packet.getSeqNum();
 				System.out.println("Packet " + recSeqNum + " received");
 				//drop the packets
+				//check checksum
+				String checkSum=packet.getCheckSum();
+				packet.setCheckSum(null);
+				if(!checkSum.equals(getCheckSum(receiveData))){
+					System.out.println("CheckSum did not match");
+					continue;
+				}
 				if(packet.getSeqNum()==6 && flag){
 					flag=false;
 					System.out.println("Dropping packet"+packet.getSeqNum());

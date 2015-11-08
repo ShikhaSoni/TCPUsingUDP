@@ -7,7 +7,7 @@ public class TCPHeader implements Serializable{
 	private boolean syn_flag=false;
 	private boolean data_flag=false;
 	private int seqNum, ackNum;
-	private byte[] checkSum=null;
+	private String checkSum=null;
 	private byte[] data=null;
 	private boolean lastBit=false;
 	
@@ -28,7 +28,7 @@ public class TCPHeader implements Serializable{
 		this.ackNum = ackNum;
 	}
 
-	public void setCheckSum(byte[] checkSum) {
+	public void setCheckSum(String checkSum) {
 		this.checkSum = checkSum;
 	}
 	
@@ -59,7 +59,7 @@ public class TCPHeader implements Serializable{
 		return ackNum;
 	}
 
-	public byte[] getCheckSum() {
+	public String getCheckSum() {
 		return checkSum;
 	}
 	public byte[] getData(){

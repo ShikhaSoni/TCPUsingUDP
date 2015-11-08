@@ -7,9 +7,13 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Queue;
+
+import javax.xml.bind.DatatypeConverter;
 
 public class NewServer {
 	Queue<TCPHeader> packetsInLine = new LinkedList<TCPHeader>();
@@ -86,6 +90,24 @@ public class NewServer {
 			e.printStackTrace();
 		}
 		return b.toByteArray();
+	}
+	
+	public String getCheckSum(byte[] object){
+		ByteArrayOutputStream baos = null;
+	    ObjectOutputStream oos = null;
+	    byte[] thedigest = null;
+	    try {
+	        baos = new ByteArrayOutputStream();
+	        oos = new ObjectOutputStream(baos);
+	        oos.writeObject(object);
+	        MessageDigest md = MessageDigest.getInstance("MD5");
+	        thedigest = md.digest(baos.toByteArray());
+	    } catch (IOException e) {
+			e.printStackTrace();
+		} catch (NoSuchAlgorithmException e) {
+			e.printStackTrace();
+		} 
+	    return DatatypeConverter.printHexBinary(thedigest);
 	}
 
 	class Receiver extends Thread {
@@ -232,7 +254,10 @@ public class NewServer {
 					for (int index = 0; index < packetsInLine.size(); index++) {
 						
 						System.out.println(packetsInLine.peek().getSeqNum()+" next sending");
-						sendData = getPacketBytes(packetsInLine.poll());
+						TCPHeader header=packetsInLine.poll();
+						String p = getCheckSum(getPacketBytes(header));
+						header.setCheckSum(p);
+						sendData=getPacketBytes(header);
 						//System.out.println(nextInLine + " sent");
 						sendPacket = new DatagramPacket(sendData,
 								sendData.length, IPAddress, port);
