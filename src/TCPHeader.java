@@ -11,7 +11,7 @@ public class TCPHeader implements Serializable{
 	private boolean syn_flag=false;
 	private boolean data_flag=false;
 	private int seqNum, ackNum;
-	private String checkSum=null;
+	private String checkSum;
 	private byte[] data=null;
 	private boolean lastBit=false;
 	

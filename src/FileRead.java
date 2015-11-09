@@ -22,7 +22,7 @@ public class FileRead {
 		
 		this.fileName = fileName;
 		file = new File(fileName);
-		System.out.println(file.length());
+		//System.out.println(file.length());
 		try {
 			fileInputStream = new FileInputStream(file);
 		} catch (FileNotFoundException e) {

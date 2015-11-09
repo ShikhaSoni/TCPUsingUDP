@@ -12,12 +12,9 @@ import java.io.ObjectOutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.TreeMap;
 
-import javax.xml.bind.DatatypeConverter;
 
 public class Client extends Thread {
 	private DatagramSocket clientSocket = null;
@@ -85,22 +82,20 @@ public class Client extends Thread {
 	 * @param object
 	 * @return
 	 */
-	public String getCheckSum(byte[] object){
-		ByteArrayOutputStream baos = null;
-	    ObjectOutputStream oos = null;
-	    byte[] thedigest = null;
-	    try {
-	        baos = new ByteArrayOutputStream();
-	        oos = new ObjectOutputStream(baos);
-	        oos.writeObject(object);
-	        MessageDigest md = MessageDigest.getInstance("MD5");
-	        thedigest = md.digest(baos.toByteArray());
-	    } catch (IOException e) {
-			e.printStackTrace();
-		} catch (NoSuchAlgorithmException e) {
-			e.printStackTrace();
-		} 
-	    return DatatypeConverter.printHexBinary(thedigest);
+	public String getCheckSum(TCPHeader object){
+		byte[] a=object.getData();
+		String checkSum="";
+		for(int i=0;i<2;i++){
+			Byte b=a[i];
+			checkSum+=b.intValue();
+		}
+		return checkSum;
+	}
+	public boolean containsPacket(int seqNum){
+		if(packets.containsKey(seqNum)){
+			return true;
+		}
+		return false;
 	}
 
 	/**
@@ -109,7 +104,6 @@ public class Client extends Thread {
 	public void rec() {
 		TCPHeader packet;
 		int recSeqNum = 0;
-		boolean flag= true;
 		while (true) {
 			receivePacket = new DatagramPacket(receiveData, receiveData.length);
 			try {
@@ -118,16 +112,13 @@ public class Client extends Thread {
 				packet = getPacketObject(receiveData);
 				recSeqNum = packet.getSeqNum();
 				System.out.println("Packet " + recSeqNum + " received");
-				String s=getCheckSum(packet.getData());
-				//System.out.println(packet.getCheckSum());
-				//System.out.println(s);
-				if(packet.getCheckSum().equals(s)){
+				String s=packet.getCheckSum();
+				if(!s.equals(getCheckSum(packet))){
 					System.out.println("CheckSum did not match");
 					continue;
 				}
-				if(packet.getSeqNum()/*%10*/==6 && flag){
-					//flag=false;
-					System.out.println("Dropping packet"+packet.getSeqNum());
+				if(packet.getSeqNum()%10==0 && !containsPacket(packet.getSeqNum())){
+					System.out.println("Dropped packet"+packet.getSeqNum());
 					continue;
 				}
 				send(nextSeqNum(recSeqNum));
@@ -189,7 +180,7 @@ public class Client extends Thread {
 		boolean flag= false;
 		if(misSeqNum.isEmpty()){
 			misSeqNum.add(latestSeqNum+1);
-			System.out.println(latestSeqNum+1+" added---1");
+			//System.out.println(latestSeqNum+1+" added---1");
 		}
 		else{
 			//remove the received packet
@@ -204,7 +195,7 @@ public class Client extends Thread {
 			}
 			if(!flag){
 			misSeqNum.add(latestSeqNum+1);
-			System.out.println(misSeqNum.get(misSeqNum.size()-1)+" added---2");
+			//System.out.println(misSeqNum.get(misSeqNum.size()-1)+" added---2");
 			flag=false;
 			}
 			return misSeqNum.get(0);
@@ -226,13 +217,13 @@ public class Client extends Thread {
 		for (int index = 1; index < packets.size(); index++) {
 			// extracting the data and writing to the file.
 			try {
-				System.out.println("Writing to the file");
 				fos.write(packets.get(index).getData());
 				fos.flush();
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
 		}
+		System.out.println("Completed writing to the file");
 		try {
 			fos.close();
 		} catch (IOException e) {
