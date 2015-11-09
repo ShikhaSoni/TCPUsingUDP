@@ -1,3 +1,7 @@
+/**
+ * @author Shikha Soni
+ * This class helps read the data into small byte chunks
+ */
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -10,6 +14,10 @@ public class FileRead {
 	File file;
 	int totalPackets;
 
+	/**
+	 * 
+	 * @param fileName the file to be converted
+	 */
 	public FileRead(String fileName) {
 		
 		this.fileName = fileName;
@@ -25,14 +33,7 @@ public class FileRead {
 	public int getNumOfPackets() {
 		return totalPackets;
 	}
-	public void print(HashMap<Integer, byte[]> parts){
-		for(int index=1; index<parts.size(); index++){
-			System.out.println("Part "+ index +":");
-			System.out.println(new String(parts.get(index)));
-			System.out.println("--------------------------"+ parts.get(index).length);
-		}
-	}
-
+	
 	public HashMap<Integer, byte[]> readNext() {
 		HashMap<Integer, byte[]> parts = new HashMap<Integer, byte[]>();
 		// fill up the hashmap
@@ -44,7 +45,6 @@ public class FileRead {
 			try {
 				fileInputStream.read(small);
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 			parts.put(index, small);
@@ -52,20 +52,14 @@ public class FileRead {
 		}
 		byte[] remaining= new byte[(int)file.length()-(count-512)];
 		if(remaining.length>0){
-			//System.out.println("remaining"+ remaining.length);
 			try {
 				fileInputStream.read(remaining);
-				//System.out.println(new String(remaining));
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 			parts.put(index+1,remaining);
-			//System.out.println(new String(parts.get(index+1)));
 		}
 		totalPackets=parts.size();
-	//	print(parts);
-		//System.out.println("Completed making "+totalPackets +" parts");
 		return parts;
 	}
 }

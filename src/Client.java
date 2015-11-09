@@ -1,3 +1,6 @@
+/**
+ * @author Shikha Soni
+ */
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -25,19 +28,29 @@ public class Client extends Thread {
 	InetAddress IPAddress;
 	byte[] sendData = new byte[1024];
 	byte[] receiveData = new byte[1024];
-	int sendflag;
+	int sendflag, port;
 
-	public Client() {
+	/**
+	 * Constructor takes te IP address and the port number of the server
+	 * @param IPAddress
+	 * @param port
+	 */
+	public Client(String IPAddress, int port) {
 		try {
 			packets = new TreeMap<Integer, TCPHeader>();
 			clientSocket = new DatagramSocket(8999);
-			IPAddress = InetAddress.getByName("localhost");
+			this.IPAddress = InetAddress.getByName(IPAddress);//InetAddress.getByName("localhost");
+			this.port=port;
 			misSeqNum= new ArrayList<Integer>();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
 
+	/**
+	 * send method takes the currently rec ack number 
+	 * @param recAckNum
+	 */
 	public void send(int recAckNum) {
 		TCPHeader packet = new TCPHeader();
 		if (sendflag == 0) {
@@ -52,7 +65,7 @@ public class Client extends Thread {
 		try {
 			sendData = getPacketBytes(packet);
 			sendPacket = new DatagramPacket(sendData, sendData.length,
-					IPAddress, 7999);
+					IPAddress, port);
 			clientSocket.send(sendPacket);
 			if (packet.getSynFlag()) {
 				Thread t = new Thread(new Runnable() {
@@ -67,7 +80,11 @@ public class Client extends Thread {
 			e.printStackTrace();
 		}
 	}
-	
+	/**
+	 * Return the checksum of the packet
+	 * @param object
+	 * @return
+	 */
 	public String getCheckSum(byte[] object){
 		ByteArrayOutputStream baos = null;
 	    ObjectOutputStream oos = null;
@@ -86,6 +103,9 @@ public class Client extends Thread {
 	    return DatatypeConverter.printHexBinary(thedigest);
 	}
 
+	/**
+	 * rec thread to rec the data packets
+	 */
 	public void rec() {
 		TCPHeader packet;
 		int recSeqNum = 0;
@@ -98,22 +118,21 @@ public class Client extends Thread {
 				packet = getPacketObject(receiveData);
 				recSeqNum = packet.getSeqNum();
 				System.out.println("Packet " + recSeqNum + " received");
-				//drop the packets
-				//check checksum
-				String checkSum=packet.getCheckSum();
-				packet.setCheckSum(null);
-				if(!checkSum.equals(getCheckSum(receiveData))){
+				String s=getCheckSum(packet.getData());
+				//System.out.println(packet.getCheckSum());
+				//System.out.println(s);
+				if(packet.getCheckSum().equals(s)){
 					System.out.println("CheckSum did not match");
 					continue;
 				}
-				if(packet.getSeqNum()==6 && flag){
-					flag=false;
+				if(packet.getSeqNum()/*%10*/==6 && flag){
+					//flag=false;
 					System.out.println("Dropping packet"+packet.getSeqNum());
 					continue;
 				}
 				send(nextSeqNum(recSeqNum));
 				packets.put(packet.getSeqNum(), packet);
-				if (packet.lastBit()) {
+				if (packet.lastBit() && packet.getSeqNum()==packets.size()) {
 					System.out.println(packet.getSeqNum()
 							+ " has been received hence opening");
 					openPacket();
@@ -124,6 +143,11 @@ public class Client extends Thread {
 		}
 	}
 
+	/**
+	 * 
+	 * @param packet
+	 * @return
+	 */
 	public byte[] getPacketBytes(TCPHeader packet) {
 		ByteArrayOutputStream b = new ByteArrayOutputStream();
 		try {
@@ -136,6 +160,11 @@ public class Client extends Thread {
 		return b.toByteArray();
 	}
 
+	/**
+	 * This fucntion returns an object from the byte format
+	 * @param packet The byte array of the serialized packet
+	 * @return The actual TCPHeader object extracted from the byte array 
+	 */
 	public TCPHeader getPacketObject(byte[] packet) {
 		TCPHeader tcp = null;
 		ByteArrayInputStream b = new ByteArrayInputStream(packet);
@@ -150,7 +179,11 @@ public class Client extends Thread {
 		}
 		return tcp;
 	}
-	
+	/**
+	 * This method predicts the ext data packet that is expected  in line
+	 * @param latestSeqNum
+	 * @return
+	 */
 	public int nextSeqNum(int latestSeqNum){
 		//expected next in line
 		boolean flag= false;
@@ -179,6 +212,9 @@ public class Client extends Thread {
 		return latestSeqNum+1;
 	}
 
+	/**
+	 * After all the packets are received this mthod decodes the bytes and writes it in a new file
+	 */
 	public void openPacket() {
 		File newFile = new File("output.txt");
 		FileOutputStream fos = null;
@@ -205,7 +241,7 @@ public class Client extends Thread {
 	}
 
 	public static void main(String[] args) {
-		new Client().send(0);
+		new Client(args[0], Integer.parseInt(args[1])).send(0);
 	}
 
 }

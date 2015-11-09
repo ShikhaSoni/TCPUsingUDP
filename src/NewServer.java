@@ -1,3 +1,8 @@
+/**
+ * @author Shikha Soni
+ * 
+ * This is the server class that handles the congestion control and flow control 
+ */
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -7,6 +12,8 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
@@ -26,29 +33,46 @@ public class NewServer {
 	byte[] sendData = new byte[1024];
 	InetAddress IPAddress;
 	int port, totalPackets, ssthresh, packetToSend;
-	double cwnd=1.0;
-	
+	double cwnd = 1.0;
 
-	public NewServer() {
-		file = new FileRead("words.txt");
+	/**
+	 * Constructor initializes the file that is to be transferred
+	 */
+	public NewServer(String fileName) {
+		file = new FileRead(fileName);
+		try {
+			System.out.println("My IP: "
+					+ InetAddress.getLocalHost().getHostAddress());
+		} catch (UnknownHostException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		System.out.println("My port: 7999");
 		try {
 			serverSocket = new DatagramSocket(7999);
 		} catch (SocketException e) {
 			e.printStackTrace();
 		}
 	}
-
+	/**
+	 * This function starts the system by initializing the receiver that waits for any client connections
+	 */
 	public void startSystem() {
 		Receiver receiver = new Receiver();
 		receiver.start();
 	}
 
 	public static void main(String[] args) {
-		NewServer server = new NewServer();
+		NewServer server = new NewServer(args[0]);
 		server.makePackets();
 		server.startSystem();
 	}
 
+	/**
+	 * This fucntion returns an object from the byte format
+	 * @param packet The byte array of the serialized packet
+	 * @return The actual TCPHeader object extracted from the byte array 
+	 */
 	public TCPHeader getPacketObject(byte[] packet) {
 		TCPHeader tcp = null;
 		ByteArrayInputStream b = new ByteArrayInputStream(packet);
@@ -64,6 +88,9 @@ public class NewServer {
 		return tcp;
 	}
 
+	/**
+	 * Make Packets divides the given file into packets and gives this payload a header
+	 */
 	public void makePackets() {
 		HashMap<Integer, byte[]> parts = file.readNext();
 		this.totalPackets = file.totalPackets;
@@ -73,7 +100,8 @@ public class NewServer {
 			header = new TCPHeader();
 			header.setSeqNum(packet_num);
 			header.setData(parts.get(packet_num));
-			// header.setCheckSum();
+			// header.setCheckSum(getCheckSum(header.getData()));
+			// System.out.println(getCheckSum(header));
 			if (packet_num == totalPackets) {
 				header.setLastBit(true);
 			}
@@ -81,6 +109,12 @@ public class NewServer {
 		}
 	}
 
+	/**
+	 * This method does exactly the opposite of getPacketObject
+	 * Converts an object into byte array
+	 * @param packet Object to be converted into bytes
+	 * @return the byte array of the object
+	 */
 	public byte[] getPacketBytes(TCPHeader packet) {
 		ByteArrayOutputStream b = new ByteArrayOutputStream();
 		try {
@@ -91,135 +125,159 @@ public class NewServer {
 		}
 		return b.toByteArray();
 	}
-	
-	public String getCheckSum(byte[] object){
+
+	/**
+	 * This method makes the checksum out of the packet
+	 * @param data byte data 
+	 * @return calculated checksum
+	 */
+	public String getCheckSum(byte[] data) {
 		ByteArrayOutputStream baos = null;
-	    ObjectOutputStream oos = null;
-	    byte[] thedigest = null;
-	    try {
-	        baos = new ByteArrayOutputStream();
-	        oos = new ObjectOutputStream(baos);
-	        oos.writeObject(object);
-	        MessageDigest md = MessageDigest.getInstance("MD5");
-	        thedigest = md.digest(baos.toByteArray());
-	    } catch (IOException e) {
+		ObjectOutputStream oos = null;
+		byte[] thedigest = null;
+		try {
+			baos = new ByteArrayOutputStream();
+			oos = new ObjectOutputStream(baos);
+			oos.writeObject(data);
+			MessageDigest md = MessageDigest.getInstance("SHA-1");
+			thedigest = md.digest(baos.toByteArray());
+		} catch (IOException e) {
 			e.printStackTrace();
 		} catch (NoSuchAlgorithmException e) {
 			e.printStackTrace();
-		} 
-	    return DatatypeConverter.printHexBinary(thedigest);
+		}
+		return DatatypeConverter.printHexBinary(thedigest);
 	}
 
+	/**
+	 * 
+	 * @author Shikha Soni
+	 *
+	 */
 	class Receiver extends Thread {
-		boolean firstTime = true, restart = false, inCongestionAvoidance=false, overSsthresh=false;
+		boolean firstTime = true, restart = false,
+				inCongestionAvoidance = false, overSsthresh = false,
+				timeOut = false;
 		int nextInLine = 0, numOfPacketsToSend, prevAckNum = Integer.MAX_VALUE,
 				countAck, droppedPacket;
 		double prevCwnd;
 
+		/**
+		 * starts the rec thread
+		 */
+		@Override
 		public void run() {
 			System.out.println("Receiver thread started");
 			rec();
 		}
 
+		/**
+		 * This method basically handles the received packets and accordingly puts the next packets in the queue
+		 * on which it is synchronized
+		 */
 		public void rec() {
 			System.out.println("Waiting for clients");
-			TCPHeader packet;
+			TCPHeader packet = null;
 			while (true) {
+				try {
+					if (!firstTime) {
+						System.out.println("Setting Timeout");
+						firstTime = false;
+						serverSocket.setSoTimeout(10000);
+					}
+				} catch (SocketException e1) {
+					e1.printStackTrace();
+				}
 				try {
 					receivePacket = new DatagramPacket(receiveData,
 							receiveData.length);
-					serverSocket.receive(receivePacket);
-					//reset timer
-					//if timer ends send the last ack rec
-					
-					IPAddress = receivePacket.getAddress();
-					port = receivePacket.getPort();
-					receiveData = receivePacket.getData();
-					packet = getPacketObject(receiveData);
-					System.out.println("CWND"+ cwnd);
-					System.out.println("Received ack: "+packet.getAckNum());
-					if (packet.getAckNum() == prevAckNum) {
+					try {
+						serverSocket.receive(receivePacket);
+						IPAddress = receivePacket.getAddress();
+						port = receivePacket.getPort();
+						receiveData = receivePacket.getData();
+						packet = getPacketObject(receiveData);
+						System.out.println("CWND" + cwnd);
+						System.out.println("Received ack: "
+								+ packet.getAckNum());
+					} catch (SocketTimeoutException ste) {
+						timeOut = true;
+					}
+					if (timeOut) {
+						restarting(prevAckNum);
+					} else if (packet.getAckNum() == prevAckNum) {
 						countAck++;
-						if(countAck>3){
+						if (countAck > 3) {
 							continue;
 						}
 						System.out.println(countAck + " dupacks");
 						if (countAck == 3) {
 							System.out.println("Ack loss occured: "
 									+ (packet.getAckNum()));
-							// retransmit the lost packet
-							restart = true;
-							//retransmit lost packet
-							droppedPacket=packet.getAckNum();
-							ssthresh=(int)cwnd/2;
-							cwnd = 0;
-							inCongestionAvoidance=true;
-							// start sending and wait till ssthresh,
-							// retransmit the lost and then increment
+							restarting(packet.getAckNum());
 						} else {
 							restart = false;
 							continue;
 						}
 					}
-					if(inCongestionAvoidance){
+					if (inCongestionAvoidance) {
 						System.out.println("In Congestion Avoidance");
 						if (restart) {
-							System.out.println("In retransmission with cwnd "+cwnd);
+							System.out.println("In retransmission with cwnd "
+									+ cwnd);
 							numOfPacketsToSend = 1;
-							//send the lost packet
-							packetToSend=droppedPacket;
-						}
-						else if(cwnd>=ssthresh || overSsthresh){
-							overSsthresh=true;
-							//System.out.println(prevCwnd);
-							if((int)cwnd-(int)prevCwnd>=1){
-								//System.out.println("----------2 packets "+(cwnd-prevCwnd));
-								prevCwnd=cwnd;
-								cwnd+=(1/cwnd);
-								numOfPacketsToSend=2;
+							// send the lost packet
+							packetToSend = droppedPacket;
+						} else if (cwnd >= ssthresh || overSsthresh) {
+							overSsthresh = true;
+							// System.out.println(prevCwnd);
+							if ((int) cwnd - (int) prevCwnd >= 1) {
+								// System.out.println("----------2 packets "+(cwnd-prevCwnd));
+								prevCwnd = cwnd;
+								cwnd += (1 / cwnd);
+								numOfPacketsToSend = 2;
+							} else {
+								// System.out.println("-----------1"+(cwnd-prevCwnd));
+								prevCwnd = cwnd;
+								cwnd += (1 / cwnd);
+								numOfPacketsToSend = 1;
 							}
-							else {
-								//System.out.println("-----------1"+(cwnd-prevCwnd));
-								prevCwnd=cwnd;
-								cwnd+=(1/cwnd);
-								numOfPacketsToSend=1;
+							packetToSend = nextInLine;
+						} else {
+							if (cwnd == 1) {
+								// System.out.println("CWND is one again"+
+								// cwnd);
+								numOfPacketsToSend = 1;
+							} else {
+								// System.out.println("CWND when cwnd is not 1 again: "+cwnd);
+								numOfPacketsToSend = 2;
 							}
-							packetToSend=nextInLine;
-						}
-						else{
-							if(cwnd==1){
-								//System.out.println("CWND is one again"+ cwnd);
-								numOfPacketsToSend=1;
-							}
-							else{
-								//System.out.println("CWND when cwnd is not 1 again: "+cwnd);
-								numOfPacketsToSend=2;
-							}
-							prevCwnd=cwnd;
+							prevCwnd = cwnd;
 							cwnd++;
-							packetToSend=nextInLine;
+							packetToSend = nextInLine;
 						}
-					}
-					else{
+					} else {
 						if (packet.getSynFlag()) {
 							numOfPacketsToSend = 1;
-							nextInLine=1;
-							packetToSend=nextInLine;
+							nextInLine = 1;
+							packetToSend = nextInLine;
 							new Sender().start();
-						}  else{
+						} else {
 							numOfPacketsToSend = 2;
-							packetToSend=nextInLine;
+							packetToSend = nextInLine;
 						}
 						cwnd++;
 					}
-					if (packet.getAckNum() < totalPackets + 1) {
+					System.out.println(packetToSend + numOfPacketsToSend + "; "
+							+ totalPackets);
+					if (packetToSend + numOfPacketsToSend <= totalPackets + 1) {
 						synchronized (packetsInLine) {
 							for (int count = 0; count < numOfPacketsToSend; count++) {
 								packetsInLine.add(packets.get(packetToSend));
-								System.out.println(packets.get(packetToSend).getSeqNum()+ " put in the queue; ");
-								if(!restart){
+								System.out.println(packets.get(packetToSend)
+										.getSeqNum() + " put in the queue; ");
+								if (!restart) {
 									nextInLine++;
-									//System.out.println("Increment "+nextInLine);
 								}
 								packetToSend++;
 							}
@@ -227,9 +285,10 @@ public class NewServer {
 						}
 					}
 					prevAckNum = packet.getAckNum();
-					if(restart){
+					if (restart) {
+						System.out.println("Inside restart increase cwnd");
 						cwnd++;
-						restart=false;
+						restart = false;
 					}
 				} catch (SocketException e) {
 					e.printStackTrace();
@@ -238,9 +297,31 @@ public class NewServer {
 				}
 			}
 		}
+
+		/**
+		 * restarts the system in case of timeout or packet loss
+		 * @param packetLoss the lost packet
+		 */
+		public void restarting(int packetLoss) {
+			inCongestionAvoidance = true;
+			droppedPacket = packetLoss;
+			timeOut = false;
+			ssthresh = (int) cwnd / 2;
+			restart = true;
+			cwnd=0;
+		}
 	}
 
+	/**
+	 * 
+	 * @author Shikha Soni
+	 *
+	 */
 	class Sender extends Thread {
+		/**
+		 * start the sender thread
+		 */
+		@Override
 		public void run() {
 			while (true) {
 				synchronized (packetsInLine) {
@@ -252,13 +333,13 @@ public class NewServer {
 						}
 					}
 					for (int index = 0; index < packetsInLine.size(); index++) {
-						
-						System.out.println(packetsInLine.peek().getSeqNum()+" next sending");
-						TCPHeader header=packetsInLine.poll();
-						String p = getCheckSum(getPacketBytes(header));
-						header.setCheckSum(p);
-						sendData=getPacketBytes(header);
-						//System.out.println(nextInLine + " sent");
+
+						System.out.println(packetsInLine.peek().getSeqNum()
+								+ " next sending");
+						TCPHeader header = packetsInLine.poll();
+						header.setCheckSum(getCheckSum(header.getData()));
+						sendData = getPacketBytes(header);
+						// System.out.println(nextInLine + " sent");
 						sendPacket = new DatagramPacket(sendData,
 								sendData.length, IPAddress, port);
 						try {
